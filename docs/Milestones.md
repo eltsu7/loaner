@@ -33,17 +33,23 @@ Test database:
 
 Tables needed in first version of the database:
 - Category
+	- (id)
 	- Name
-	- Parent category (nullable)
+	- supercategory -> category.id (nullable)
 - Product
+	- (id)
 	- Name
-	- Parent category
+	- category -> category.id
 - Instance (name wip)
+	- (id)
 	- Identifier (add-on to product name)
-	- Parent product
+	- product -> product.id
 - User
+	- (id)
 	- Name
 - Loan
-	- Loaner
-	- Instance
-	- Date
+	- (id)
+	- user -> user.id
+	- instance -> instance.id
+	- Date start
+	- Date end
