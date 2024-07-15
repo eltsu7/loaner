@@ -1,14 +1,15 @@
-## Käyttäjätarinat :D
-### Varaaminen
-- yks tai useampi tavara
-- päivämääräväli
-- tilat: hyväksytty/odottaa/hylätty
+## User Stories :D
+### Loaning
+- One or multiple items
+- Date range
+- Status: Approved/Pending/Rejected
 
-### Varausten tarkastelu
-- päivämäärä/päivämääräväli
-- tietyn käyttäjän varaukset
-- tietyn tuotteen/kategorian varaukset (varattu ja vapaana)
+### Viewing Loans
+- Date/date range
+- Loans of a specific user
+- Loans of a specific product/category (reserved and available)
 
-### käyttäjänhallinta
-- luominen, lainausoikeuden myöntäminen/evääminen
-- poistaminen
+### User Management
+- Creation
+- Granting/revoking borrowing rights
+- Deletion
