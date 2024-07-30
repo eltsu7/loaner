@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+use rusqlite::Connection;
 
 #[derive(Debug)]
 struct User {
@@ -6,9 +6,7 @@ struct User {
     name: String,
 }
 
-fn main() {
-    let conn = Connection::open("./test.db").unwrap();
-
+fn get_users(conn: Connection) -> Vec<User> {
     let mut statement = conn.prepare("select * from user;").unwrap();
     let user_iter = statement
         .query_map([], |row| {
@@ -19,11 +17,20 @@ fn main() {
         })
         .unwrap();
 
+    let mut users = Vec::new();
+
     for user in user_iter {
-        println!(
-            "User id: {}, name: {}",
-            user.as_ref().unwrap().id,
-            user.as_ref().unwrap().name
-        );
+        users.push(user.unwrap());
+    }
+    return users;
+}
+
+fn main() {
+    let conn = Connection::open("./test.db").unwrap();
+
+    let users = get_users(conn);
+
+    for user in users {
+        println!("User id: {}, name: {}", user.id, user.name);
     }
 }
