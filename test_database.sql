@@ -23,7 +23,7 @@ INSERT INTO product VALUES(6,'Godox AD200',6);
 INSERT INTO product VALUES(7,'LED Panel 3000',7);
 INSERT INTO product VALUES(8,'Canon strap',9);
 CREATE TABLE instance (id integer primary key autoincrement, identifier text, product integer not null, foreign key (product) references product(id));
-CREATE TABLE loan (id integer primary key autoincrement, user integer not null, instance integer not null, date_start text not null, date_end, text not null, foreign key (user) references user(id), foreign key (instance) references instance(id));
+CREATE TABLE loan (id integer primary key autoincrement, user integer not null, instance integer not null, date_start text not null, date_end text not null, foreign key (user) references user(id), foreign key (instance) references instance(id));
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence VALUES('user',2);
 INSERT INTO sqlite_sequence VALUES('category',9);
