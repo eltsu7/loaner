@@ -1,3 +1,5 @@
+pub use chrono::prelude::*;
+use rusqlite::params;
 use rusqlite::Connection;
 
 #[derive(Debug)]
@@ -31,8 +33,8 @@ pub struct Instance {
 pub struct Loan {
     pub id: i32,
     pub instance: Instance,
-    pub date_start: String,
-    pub date_end: String,
+    pub date_start: DateTime<FixedOffset>, // FixedOffset or Local or something else?
+    pub date_end: DateTime<FixedOffset>,
     pub user: User,
 }
 
@@ -67,6 +69,7 @@ impl Database {
     }
 
     pub fn get_loans(&self) -> Vec<Loan> {
+        // TODO function parameters to narrow down search
         let mut statement = self
             .connection
             .prepare(
@@ -108,8 +111,10 @@ impl Database {
                             },
                         },
                     },
-                    date_start: row.get(8).unwrap(),
-                    date_end: row.get(9).unwrap(),
+                    date_start: DateTime::parse_from_rfc3339(&row.get::<usize, String>(8).unwrap())
+                        .unwrap(),
+                    date_end: DateTime::parse_from_rfc3339(&row.get::<usize, String>(9).unwrap())
+                        .unwrap(),
                     user: User {
                         id: row.get(10).unwrap(),
                         name: row.get(11).unwrap(),
@@ -124,5 +129,27 @@ impl Database {
             loans.push(user.unwrap());
         }
         return loans;
+    }
+
+    pub fn add_loan(
+        &self,
+        user_id: i32,
+        instance_id: i32,
+        date_start: DateTime<FixedOffset>,
+        date_end: DateTime<FixedOffset>,
+    ) {
+        // TODO check that items are not loaned already
+        match self.connection.execute(
+            "insert into loan (user, instance, date_start, date_end) values (?1, ?2, ?3, ?4)",
+            params![
+                user_id,
+                instance_id,
+                date_start.to_rfc3339(),
+                date_end.to_rfc3339(),
+            ],
+        ) {
+            Ok(updated) => println!("Updated {}", updated),
+            Err(err) => println!("Error: {}", err),
+        }
     }
 }

@@ -1,3 +1,5 @@
+use chrono::Local;
+
 pub mod database;
 
 fn main() {
@@ -9,14 +11,17 @@ fn main() {
         println!("User id: {}, name: {}", user.id, user.name);
     }
 
-    for loan in db.get_loans() {
+    let loans = db.get_loans();
+    for loan in &loans {
         println!(
-            "{} loans {}({}) from {} to {}",
+            "{} loans {} ({}) from {} to {}",
             loan.user.name,
             loan.instance.product.name,
             loan.instance.identifier,
-            loan.date_start,
-            loan.date_end,
+            loan.date_start.format("%Y-%m-%d %H:%m"),
+            loan.date_end.format("%Y-%m-%d %H:%m"),
         );
     }
+
+    println!("{}", Local::now())
 }
