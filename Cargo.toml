@@ -5,4 +5,7 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.38"
-rusqlite = { version = "0.31.0", features = ["bundled"] }
+chrono-tz = "0.10.0"
+rand = "0.8.5"
+rusqlite = { version = "0.31.0", features = ["bundled", "uuid"] }
+uuid = { version = "1.11.0", features = ["v4"] }

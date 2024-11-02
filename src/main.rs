@@ -1,20 +1,17 @@
-use chrono::Local;
+use crate::database::{Database, LoanQueryParams};
 
 pub mod database;
+pub mod test_database;
 
 fn main() {
-    let db = database::Database::new("./test.db");
+    let db_name = "test.db";
+    let db = Database::new(db_name);
 
-    let users = db.get_users();
-
-    for user in users {
-        println!("User id: {}, name: {}", user.id, user.name);
-    }
-
-    let loans = db.get_loans();
+    let loans = db.get_loans(LoanQueryParams::new());
+    println!("Loan count: {}", loans.len());
     for loan in &loans {
         println!(
-            "{} loans {} ({}) from {} to {}",
+            "{} loans \t{} ({}) \t from {} \tto {}",
             loan.user.name,
             loan.instance.product.name,
             loan.instance.identifier,
@@ -22,6 +19,4 @@ fn main() {
             loan.date_end.format("%Y-%m-%d %H:%m"),
         );
     }
-
-    println!("{}", Local::now())
 }
