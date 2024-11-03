@@ -93,7 +93,13 @@ impl Database {
     }
 
     pub fn get_users(&self) -> Vec<User> {
-        let mut statement = self.connection.prepare("select * from user;").unwrap();
+        let query = String::from(
+            "SELECT
+                user.uuid,
+                user.name
+            FROM user",
+        );
+        let mut statement = self.connection.prepare(&query).unwrap();
         let user_iter = statement
             .query_map([], |row| {
                 Ok(User {
@@ -109,25 +115,88 @@ impl Database {
         return users;
     }
 
+    pub fn get_user(&self, uuid: Uuid) -> Option<User> {
+        let query = String::from(
+            "SELECT
+                user.uuid,
+                user.name
+            FROM user
+            WHERE user.uuid = ?1",
+        );
+        let mut statement = self.connection.prepare(&query).unwrap();
+        let mut user_iter = statement
+            .query_map(params![uuid], |row| {
+                Ok(User {
+                    uuid: row.get(0).unwrap(),
+                    name: row.get(1).unwrap(),
+                })
+            })
+            .unwrap();
+        if let Some(user) = user_iter.next() {
+            return Some(user.unwrap());
+        } else {
+            None
+        }
+    }
+
+    pub fn get_user_by_name(&self, name: &str) -> Option<User> {
+        let query = String::from(
+            "SELECT
+                user.uuid,
+                user.name
+            FROM user
+            WHERE user.name = ?1",
+        );
+        let mut statement = self.connection.prepare(&query).unwrap();
+        let mut user_iter = statement
+            .query_map(params![name], |row| {
+                Ok(User {
+                    uuid: row.get(0).unwrap(),
+                    name: row.get(1).unwrap(),
+                })
+            })
+            .unwrap();
+        if let Some(user) = user_iter.next() {
+            return Some(user.unwrap());
+        } else {
+            None
+        }
+    }
+
     pub fn add_user(&self, name: &str) {
         let uuid = Uuid::new_v4();
+        let query = String::from(
+            "INSERT INTO
+                user (uuid, name)
+            VALUES
+                (?1, ?2)",
+        );
         self.connection
-            .execute(
-                "INSERT INTO user (uuid, name) VALUES (?1, ?2)",
-                params![uuid, name],
-            )
+            .execute(&query, params![uuid, name])
             .unwrap();
     }
 
     pub fn get_categories(&self, supercategory: Option<Uuid>) -> Vec<Category> {
         let mut statement: rusqlite::Statement;
         if let Some(_) = supercategory {
-            statement = self
-                .connection
-                .prepare("SELECT * FROM category WHERE supercategory = ?1")
-                .unwrap();
+            let query = String::from(
+                "SELECT
+                    category.uuid,
+                    category.name,
+                    category.supercategory
+                FROM category
+                WHERE category.supercategory = ?1",
+            );
+            statement = self.connection.prepare(&query).unwrap();
         } else {
-            statement = self.connection.prepare("SELECT * FROM category").unwrap();
+            let query = String::from(
+                "SELECT
+                    category.uuid,
+                    category.name,
+                    category.supercategory
+                FROM category",
+            );
+            statement = self.connection.prepare(&query).unwrap();
         }
         let category_iter = statement
             .query_map([], |row| {
@@ -148,10 +217,15 @@ impl Database {
     }
 
     pub fn get_category(&self, name: &str) -> Option<Category> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT * FROM category WHERE name = ?1")
-            .unwrap();
+        let query = String::from(
+            "SELECT
+                category.uuid,
+                category.name,
+                category.supercategory
+            FROM category
+            WHERE category.name = ?1",
+        );
+        let mut statement = self.connection.prepare(&query).unwrap();
         let mut category_iter = statement
             .query_map(params![name], |row| {
                 Ok(Category {
@@ -227,11 +301,19 @@ impl Database {
     }
 
     pub fn get_products(&self, category_id: Option<Uuid>) -> Vec<Product> {
-        let mut query = String::from("select * from product");
+        let mut query = String::from(
+            "select
+                product.uuid,
+                product.name,
+                category.uuid,
+                category.name,
+                category.supercategory
+            from product
+            inner join category on product.category = category.uuid",
+        );
         if let Some(id) = category_id {
             query.push_str(&format!(" where category = {}", id));
         }
-        query.push_str(" inner join category on product.category = category.id");
 
         let mut statement = self.connection.prepare(&query).unwrap();
         let product_iter = statement
@@ -257,24 +339,33 @@ impl Database {
     }
 
     pub fn get_product_by_name(&self, name: &str) -> Option<Product> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT * FROM product inner join category on product.category = category.uuid WHERE product.name = ?1")
-            .unwrap();
+        let query = String::from(
+            "select
+                product.uuid,
+                product.name,
+                category.uuid,
+                category.name,
+                category.supercategory
+            from product
+            inner join category on product.category = category.uuid
+            where product.name = ?1",
+        );
+        let mut statement = self.connection.prepare(&query).unwrap();
         let mut product_iter = statement
             .query_map(params![name], |row| {
                 Ok(Product {
                     uuid: row.get(0).unwrap(),
                     name: row.get(1).unwrap(),
                     category: Category {
-                        uuid: row.get(3).unwrap(),
-                        name: row.get(4).unwrap(),
-                        supercategory: row.get(5).unwrap(),
+                        uuid: row.get(2).unwrap(),
+                        name: row.get(3).unwrap(),
+                        supercategory: row.get(4).unwrap(),
                     },
                 })
             })
             .unwrap();
 
+        // There should be only one product with the given name
         if let Some(product) = product_iter.next() {
             return Some(product.unwrap());
         } else {
@@ -283,19 +374,27 @@ impl Database {
     }
 
     pub fn get_product(&self, product_uuid: Uuid) -> Option<Product> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT * FROM product inner join category on product.category = category.uuid WHERE product.uuid = ?1")
-            .unwrap();
+        let query = String::from(
+            "SELECT
+                product.uuid,
+                product.name,
+                category.uuid,
+                category.name,
+                category.supercategory
+            FROM product
+            INNER JOIN category ON product.category = category.uuid
+            WHERE product.uuid = ?1",
+        );
+        let mut statement = self.connection.prepare(&query).unwrap();
         let mut product_iter = statement
             .query_map(params![product_uuid], |row| {
                 Ok(Product {
                     uuid: row.get(0).unwrap(),
                     name: row.get(1).unwrap(),
                     category: Category {
-                        uuid: row.get(3).unwrap(),
-                        name: row.get(4).unwrap(),
-                        supercategory: row.get(5).unwrap(),
+                        uuid: row.get(2).unwrap(),
+                        name: row.get(3).unwrap(),
+                        supercategory: row.get(4).unwrap(),
                     },
                 })
             })
