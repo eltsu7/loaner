@@ -302,14 +302,14 @@ impl Database {
 
     pub fn get_products(&self, category_id: Option<Uuid>) -> Vec<Product> {
         let mut query = String::from(
-            "select
+            "SELECT
                 product.uuid,
                 product.name,
                 category.uuid,
                 category.name,
                 category.supercategory
-            from product
-            inner join category on product.category = category.uuid",
+            FROM product
+            INNER JOIN category ON product.category = category.uuid",
         );
         if let Some(id) = category_id {
             query.push_str(&format!(" where category = {}", id));
@@ -340,15 +340,15 @@ impl Database {
 
     pub fn get_product_by_name(&self, name: &str) -> Option<Product> {
         let query = String::from(
-            "select
+            "SELECT
                 product.uuid,
                 product.name,
                 category.uuid,
                 category.name,
                 category.supercategory
-            from product
-            inner join category on product.category = category.uuid
-            where product.name = ?1",
+            FROM product
+                INNER join category ON product.category = category.uuid
+            WHERE product.name = ?1",
         );
         let mut statement = self.connection.prepare(&query).unwrap();
         let mut product_iter = statement
@@ -382,7 +382,7 @@ impl Database {
                 category.name,
                 category.supercategory
             FROM product
-            INNER JOIN category ON product.category = category.uuid
+                INNER JOIN category ON product.category = category.uuid
             WHERE product.uuid = ?1",
         );
         let mut statement = self.connection.prepare(&query).unwrap();
@@ -448,7 +448,7 @@ impl Database {
         let mut instances = Vec::new();
         if product_id.is_some() {
             let query = String::from(
-                "select
+                "SELECT
                     instance.uuid,
                     instance.identifier,
                     product.uuid,
@@ -456,10 +456,10 @@ impl Database {
                     category.uuid,
                     category.name,
                     category.supercategory
-                from instance
-                    inner join product on instance.product = product.uuid
-                    inner join category on product.category = category.uuid
-                where product = ?1",
+                FROM instance
+                    INNER JOIN product ON instance.product = product.uuid
+                    INNER JOIN category ON product.category = category.uuid
+                WHERE product = ?1",
             );
             let mut statement = self.connection.prepare(&query).unwrap();
             let instance_iter = statement
@@ -485,7 +485,7 @@ impl Database {
             return instances;
         } else {
             let query = String::from(
-                "select
+                "SELECt
                     instance.uuid,
                     instance.identifier,
                     product.uuid,
@@ -493,9 +493,9 @@ impl Database {
                     category.uuid,
                     category.name,
                     category.supercategory
-                from instance
-                    inner join product on instance.product = product.uuid
-                    inner join category on product.category = category.uuid",
+                FROM instance
+                    INNER JOIN product ON instance.product = product.uuid
+                    INNER JOIN category ON product.category = category.uuid",
             );
             let mut statement = self.connection.prepare(&query).unwrap();
             let instance_iter = statement
@@ -524,7 +524,7 @@ impl Database {
 
     pub fn get_instance(&self, instance_uuid: Uuid) -> Instance {
         let query = String::from(
-            "select
+            "SELECT
                 instance.uuid,
                 instance.identifier,
                 product.uuid,
@@ -532,10 +532,10 @@ impl Database {
                 category.uuid,
                 category.name,
                 category.supercategory
-            from instance
-                inner join product on instance.product = product.uuid
-                inner join category on product.category = category.uuid
-            where instance.uuid = ?1",
+            FROM instance
+                INNER JOIN product ON instance.product = product.uuid
+                INNER JOIN category ON product.category = category.uuid
+            WHERE instance.uuid = ?1",
         );
         self.connection
             .prepare(&query)
@@ -605,7 +605,7 @@ impl Database {
     /// Transform dates to Helsinki timezone
     pub fn get_loans(&self, params: LoanQueryParams) -> Vec<Loan> {
         let mut query = String::from(
-            "select 
+            "SELECT 
                 loan.uuid, 
                 instance.uuid,
                 instance.identifier,
@@ -618,12 +618,12 @@ impl Database {
                 date_end,
                 user.uuid,
                 user.name
-            from loan 
+            FROM loan 
                 inner join user on loan.user = user.uuid
                 inner join instance on loan.instance = instance.uuid
                 inner join product on instance.product = product.uuid
                 inner join category on product.category = category.uuid
-            where 1=1",
+            WHERE 1=1",
         );
 
         if let Some(id) = params.loan_uuid {
@@ -689,25 +689,25 @@ impl Database {
         let mut statement = self
             .connection
             .prepare(
-                "select 
-                loan.uuid, 
-                instance.uuid,
-                instance.identifier,
-                product.uuid,
-                product.name,
-                category.uuid,
-                category.name,
-                category.supercategory,
-                date_start,
-                date_end,
-                user.uuid,
-                user.name
-            from loan 
-                inner join user on loan.user = user.uuid
-                inner join instance on loan.instance = instance.uuid
-                inner join product on instance.product = product.uuid
-                inner join category on product.category = category.uuid
-            where loan.uuid = ?1",
+                "SELECT 
+                    loan.uuid, 
+                    instance.uuid,
+                    instance.identifier,
+                    product.uuid,
+                    product.name,
+                    category.uuid,
+                    category.name,
+                    category.supercategory,
+                    date_start,
+                    date_end,
+                    user.uuid,
+                    user.name
+                FROM loan 
+                    inner join user on loan.user = user.uuid
+                    inner join instance on loan.instance = instance.uuid
+                    inner join product on instance.product = product.uuid
+                    inner join category on product.category = category.uuid
+                WHERE loan.uuid = ?1",
             )
             .unwrap();
         let mut loan_iter = statement
@@ -798,9 +798,9 @@ impl Database {
         let uuid = Uuid::new_v4();
         self.connection
             .execute(
-                "insert into
+                "INSERT INTO
                     loan (uuid, user, instance, date_start, date_end)
-                values
+                VALUES
                     (?1, ?2, ?3, ?4, ?5)",
                 params![
                     uuid,
