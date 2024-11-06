@@ -50,13 +50,22 @@ pub struct Instance {
     pub product: Product,
 }
 
+/// Shallow instances to be returned with loans, uuid should match instance uuid
+#[derive(Debug)]
+pub struct LoanInstance {
+    pub uuid: Uuid,
+    pub product_name: String,
+    pub identifier: String,
+    pub category_name: String,
+}
+
 #[derive(Debug)]
 pub struct Loan {
     pub uuid: Uuid,
-    pub instance: Instance,
     pub date_start: DateTime<Tz>,
     pub date_end: DateTime<Tz>,
     pub user: User,
+    pub instaces: Vec<LoanInstance>,
 }
 
 pub struct Database {
@@ -607,8 +616,6 @@ impl Database {
         let mut query = String::from(
             "SELECT 
                 loan.uuid, 
-                instance.uuid,
-                instance.identifier,
                 product.uuid,
                 product.name,
                 category.uuid,
@@ -620,7 +627,6 @@ impl Database {
                 user.name
             FROM loan 
                 inner join user on loan.user = user.uuid
-                inner join instance on loan.instance = instance.uuid
                 inner join product on instance.product = product.uuid
                 inner join category on product.category = category.uuid
             WHERE 1=1",
@@ -650,19 +656,7 @@ impl Database {
             .query_map([], |row| {
                 Ok(Loan {
                     uuid: row.get(0).unwrap(),
-                    instance: Instance {
-                        uuid: row.get(1).unwrap(),
-                        identifier: row.get(2).unwrap(),
-                        product: Product {
-                            uuid: row.get(3).unwrap(),
-                            name: row.get(4).unwrap(),
-                            category: Category {
-                                uuid: row.get(5).unwrap(),
-                                name: row.get(6).unwrap(),
-                                supercategory: row.get(7).unwrap(),
-                            },
-                        },
-                    },
+                    instaces: Vec::new(),
                     date_start: DateTime::parse_from_rfc3339(&row.get::<usize, String>(8).unwrap())
                         .unwrap()
                         .with_timezone(&Helsinki),
@@ -679,13 +673,46 @@ impl Database {
 
         let mut loans = Vec::new();
 
+        // Fill instances for each loan
+        let instances_query = String::from(
+            "SELECT
+                instance.uuid,
+                instance.identifier,
+                product.name,
+                category.name,
+            FROM instance
+                INNER JOIN loan_instances ON instance.uuid = loan_instances.instance
+                INNER JOIN product ON instance.product = product.uuid
+                INNER JOIN category ON product.category = category.uuid
+            WHERE loan.uuid = ?1",
+        );
+        let mut instances_statement = self.connection.prepare(&instances_query).unwrap();
+
         for loan in loan_iter {
-            loans.push(loan.unwrap());
+            let mut loan_object: Loan = loan.unwrap();
+
+            let loan_instances: Vec<LoanInstance> = instances_statement
+                .query_map(params![loan_object.uuid], |row| {
+                    Ok(LoanInstance {
+                        uuid: row.get(0).unwrap(),
+                        identifier: row.get(1).unwrap(),
+                        product_name: row.get(2).unwrap(),
+                        category_name: row.get(3).unwrap(),
+                    })
+                })
+                .unwrap()
+                .map(|instance| instance.unwrap())
+                .collect();
+
+            loan_object.instaces = loan_instances;
+
+            loans.push(loan_object);
         }
         loans
     }
 
     pub fn get_loan(&self, loan_uuid: Uuid) -> Loan {
+        // TODO fill instaces
         let mut statement = self
             .connection
             .prepare(
@@ -714,19 +741,7 @@ impl Database {
             .query_map(params![loan_uuid], |row| {
                 Ok(Loan {
                     uuid: row.get(0).unwrap(),
-                    instance: Instance {
-                        uuid: row.get(1).unwrap(),
-                        identifier: row.get(2).unwrap(),
-                        product: Product {
-                            uuid: row.get(3).unwrap(),
-                            name: row.get(4).unwrap(),
-                            category: Category {
-                                uuid: row.get(5).unwrap(),
-                                name: row.get(6).unwrap(),
-                                supercategory: row.get(7).unwrap(),
-                            },
-                        },
-                    },
+                    instaces: Vec::new(),
                     date_start: DateTime::parse_from_rfc3339(&row.get::<usize, String>(8).unwrap())
                         .unwrap()
                         .with_timezone(&Helsinki),
