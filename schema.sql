@@ -61,3 +61,27 @@ CREATE TABLE IF NOT EXISTS loan_instances (
   FOREIGN KEY (loan) REFERENCES loan (uuid),
   FOREIGN KEY (instance) REFERENCES instance (uuid)
 );
+
+
+CREATE VIEW IF NOT EXISTS loan_view AS
+SELECT
+  loan.uuid AS loan_uuid,
+  loan.date_start AS loan_date_start,
+  loan.date_end AS loan_date_end,
+  loan.accepted AS loan_accepted,
+  loan.description AS loan_description,
+  user.name AS user_name,
+  user.uuid AS user_uuid,
+  instance.uuid AS instance_uuid,
+  instance.identifier AS instance_identifier,
+  product.uuid AS product_uuid,
+  product.name AS product_name,
+  category.uuid AS category_uuid,
+  category.name AS category_name,
+  category.supercategory AS category_supercategory
+FROM loan_instances
+  JOIN loan ON loan_instances.loan = loan.uuid
+  JOIN instance ON loan_instances.instance = instance.uuid
+  JOIN product ON instance.product = product.uuid
+  JOIN category ON product.category = category.uuid
+  JOIN user ON loan.user = user.uuid;

@@ -50,22 +50,13 @@ pub struct Instance {
     pub product: Product,
 }
 
-/// Shallow instances to be returned with loans, uuid should match instance uuid
-#[derive(Debug)]
-pub struct LoanInstance {
-    pub uuid: Uuid,
-    pub product_name: String,
-    pub identifier: String,
-    pub category_name: String,
-}
-
 #[derive(Debug)]
 pub struct Loan {
     pub uuid: Uuid,
     pub date_start: DateTime<Tz>,
     pub date_end: DateTime<Tz>,
     pub user: User,
-    pub instaces: Vec<LoanInstance>,
+    pub instaces: Vec<Instance>,
 }
 
 pub struct Database {
