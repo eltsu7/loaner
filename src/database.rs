@@ -10,8 +10,10 @@ use rusqlite::Connection;
 #[derive(Default)]
 pub struct LoanQueryParams {
     pub loan_uuid: Option<Uuid>,
+    pub loan_accepted: Option<bool>,
     pub user_uuid: Option<Uuid>,
     pub product_uuid: Option<Uuid>,
+    pub instance_uuid: Option<Uuid>,
     pub category_uuid: Option<Uuid>,
     pub date_start: Option<DateTime<Tz>>,
     pub date_end: Option<DateTime<Tz>>,
@@ -23,39 +25,41 @@ impl LoanQueryParams {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct User {
     pub uuid: Uuid,
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Category {
     pub uuid: Uuid,
     pub name: String,
     pub supercategory: Option<Uuid>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Product {
     pub uuid: Uuid,
     pub name: String,
     pub category: Category,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Instance {
     pub uuid: Uuid,
     pub identifier: String,
     pub product: Product,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Loan {
     pub uuid: Uuid,
+    pub user: User,
     pub date_start: DateTime<Tz>,
     pub date_end: DateTime<Tz>,
-    pub user: User,
+    pub accepted: bool,
+    pub description: Option<String>,
     pub instaces: Vec<Instance>,
 }
 
@@ -601,222 +605,197 @@ impl Database {
         return Ok(self.get_instance(uuid));
     }
 
-    /// Get loans from the database based on the query parameters
+    /// Get loans from loan_view
     /// Transform dates to Helsinki timezone
     pub fn get_loans(&self, params: LoanQueryParams) -> Vec<Loan> {
         let mut query = String::from(
             "SELECT 
-                loan.uuid, 
-                product.uuid,
-                product.name,
-                category.uuid,
-                category.name,
-                category.supercategory,
-                date_start,
-                date_end,
-                user.uuid,
-                user.name
-            FROM loan 
-                inner join user on loan.user = user.uuid
-                inner join product on instance.product = product.uuid
-                inner join category on product.category = category.uuid
+                loan_uuid,
+                loan_date_start,
+                loan_date_end,
+                loan_accepted,
+                loan_description,
+                user_uuid,
+                user_name,
+                instance_uuid,
+                instance_identifier,
+                product_uuid,
+                product_name,
+                category_uuid,
+                category_name,
+                category_supercategory
+            FROM loan_view
             WHERE 1=1",
         );
 
         if let Some(id) = params.loan_uuid {
-            query.push_str(&format!(" and loan.uuid = '{}'", id));
+            query.push_str(&format!(" and loan_uuid = '{}'", id));
+        }
+        if let Some(accepted) = params.loan_accepted {
+            query.push_str(&format!(" and loan_accepted = '{}'", accepted));
         }
         if let Some(id) = params.user_uuid {
-            query.push_str(&format!(" and user.uuid = '{}'", id));
+            query.push_str(&format!(" and user_uuid = '{}'", id));
         }
         if let Some(id) = params.product_uuid {
-            query.push_str(&format!(" and product.uuid = '{}'", id));
+            query.push_str(&format!(" and product_uuid = '{}'", id));
         }
         if let Some(id) = params.category_uuid {
-            query.push_str(&format!(" and category.uuid = '{}'", id));
+            query.push_str(&format!(" and category_uuid = '{}'", id));
         }
         if let Some(start) = params.date_start {
-            query.push_str(&format!(" and date_start >= '{}'", start));
+            query.push_str(&format!(" and loan_date_start >= '{}'", start));
         }
         if let Some(end) = params.date_end {
-            query.push_str(&format!(" and date_end <= '{}'", end));
+            query.push_str(&format!(" and loan_date_end <= '{}'", end));
         }
+
+        // Combine loans
+        let mut loans: Vec<Loan> = Vec::new();
 
         let mut statement = self.connection.prepare(&query).unwrap();
-        let loan_iter = statement
-            .query_map([], |row| {
-                Ok(Loan {
-                    uuid: row.get(0).unwrap(),
-                    instaces: Vec::new(),
-                    date_start: DateTime::parse_from_rfc3339(&row.get::<usize, String>(8).unwrap())
-                        .unwrap()
-                        .with_timezone(&Helsinki),
-                    date_end: DateTime::parse_from_rfc3339(&row.get::<usize, String>(9).unwrap())
-                        .unwrap()
-                        .with_timezone(&Helsinki),
-                    user: User {
-                        uuid: row.get(10).unwrap(),
-                        name: row.get(11).unwrap(),
-                    },
-                })
-            })
-            .unwrap();
+        let rows = statement.query_map([], |row| {
+            Ok(Loan {
+                uuid: row.get(0).unwrap(),
+                user: User {
+                    uuid: row.get(5).unwrap(),
+                    name: row.get(6).unwrap(),
+                },
+                date_start: DateTime::parse_from_rfc3339(
+                    &row.get::<usize, String>(1).unwrap().as_str(),
+                )
+                .unwrap()
+                .with_timezone(&Helsinki),
+                date_end: DateTime::parse_from_rfc3339(
+                    &row.get::<usize, String>(2).unwrap().as_str(),
+                )
+                .unwrap()
+                .with_timezone(&Helsinki),
 
-        let mut loans = Vec::new();
+                accepted: row.get(3).unwrap(),
+                description: row.get(4).unwrap(),
+                instaces: vec![Instance {
+                    uuid: row.get(7).unwrap(),
+                    identifier: row.get(8).unwrap(),
+                    product: Product {
+                        uuid: row.get(9).unwrap(),
+                        name: row.get(10).unwrap(),
+                        category: Category {
+                            uuid: row.get(11).unwrap(),
+                            name: row.get(12).unwrap(),
+                            supercategory: row.get(13).unwrap(),
+                        },
+                    },
+                }],
+            })
+        });
 
         // Fill instances for each loan
-        let instances_query = String::from(
-            "SELECT
-                instance.uuid,
-                instance.identifier,
-                product.name,
-                category.name,
-            FROM instance
-                INNER JOIN loan_instances ON instance.uuid = loan_instances.instance
-                INNER JOIN product ON instance.product = product.uuid
-                INNER JOIN category ON product.category = category.uuid
-            WHERE loan.uuid = ?1",
-        );
-        let mut instances_statement = self.connection.prepare(&instances_query).unwrap();
-
-        for loan in loan_iter {
-            let mut loan_object: Loan = loan.unwrap();
-
-            let loan_instances: Vec<LoanInstance> = instances_statement
-                .query_map(params![loan_object.uuid], |row| {
-                    Ok(LoanInstance {
-                        uuid: row.get(0).unwrap(),
-                        identifier: row.get(1).unwrap(),
-                        product_name: row.get(2).unwrap(),
-                        category_name: row.get(3).unwrap(),
-                    })
-                })
-                .unwrap()
-                .map(|instance| instance.unwrap())
-                .collect();
-
-            loan_object.instaces = loan_instances;
-
-            loans.push(loan_object);
+        'rows: for row in rows.unwrap() {
+            for loan in loans.iter_mut() {
+                if loan.uuid == row.as_ref().unwrap().uuid {
+                    let instance = row.as_ref().unwrap().instaces[0].clone();
+                    loan.instaces.push(instance);
+                    continue 'rows;
+                }
+            }
+            loans.push(row.unwrap());
         }
+
         loans
     }
 
-    pub fn get_loan(&self, loan_uuid: Uuid) -> Loan {
-        // TODO fill instaces
-        let mut statement = self
-            .connection
-            .prepare(
-                "SELECT 
-                    loan.uuid, 
-                    instance.uuid,
-                    instance.identifier,
-                    product.uuid,
-                    product.name,
-                    category.uuid,
-                    category.name,
-                    category.supercategory,
-                    date_start,
-                    date_end,
-                    user.uuid,
-                    user.name
-                FROM loan 
-                    inner join user on loan.user = user.uuid
-                    inner join instance on loan.instance = instance.uuid
-                    inner join product on instance.product = product.uuid
-                    inner join category on product.category = category.uuid
-                WHERE loan.uuid = ?1",
-            )
-            .unwrap();
-        let mut loan_iter = statement
-            .query_map(params![loan_uuid], |row| {
-                Ok(Loan {
-                    uuid: row.get(0).unwrap(),
-                    instaces: Vec::new(),
-                    date_start: DateTime::parse_from_rfc3339(&row.get::<usize, String>(8).unwrap())
-                        .unwrap()
-                        .with_timezone(&Helsinki),
-                    date_end: DateTime::parse_from_rfc3339(&row.get::<usize, String>(9).unwrap())
-                        .unwrap()
-                        .with_timezone(&Helsinki),
-                    user: User {
-                        uuid: row.get(10).unwrap(),
-                        name: row.get(11).unwrap(),
-                    },
-                })
-            })
-            .unwrap();
-        loan_iter.next().unwrap().unwrap()
+    pub fn get_loan(&self, loan_uuid: Uuid) -> Option<Loan> {
+        let query_params = LoanQueryParams {
+            loan_uuid: Some(loan_uuid),
+            ..Default::default()
+        };
+        let loans = self.get_loans(query_params);
+
+        if loans.len() > 0 {
+            return Some(loans[0].clone());
+        } else {
+            None
+        }
     }
 
     pub fn add_loan(
         &self,
         user_id: Uuid,
-        instance_id: Uuid,
+        instaces: Vec<Uuid>,
         date_start: DateTime<Tz>,
         date_end: DateTime<Tz>,
     ) -> Result<Loan, String> {
         // Check overalapping loans
-        let mut statement = self
-            .connection
-            .prepare(
-                "SELECT 
-                    user, 
-                    date_start, 
-                    date_end 
-                FROM 
-                    loan 
-                WHERE 
-                    instance = ?1 
-                    AND (
-                        (date_start <= ?2 AND date_end >= ?2) 
-                        OR (date_start <= ?3 AND date_end >= ?3) 
-                        OR (date_start >= ?2 AND date_end <= ?3)
-                    )",
-            )
-            .map_err(|e| e.to_string())?;
 
-        let mut conflicting_loans = statement
-            .query_map(
-                params![instance_id, date_start.to_rfc3339(), date_end.to_rfc3339(),],
-                |row| {
-                    Ok((
-                        row.get::<_, Uuid>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                    ))
-                },
-            )
-            .map_err(|e| e.to_string())?;
+        for instance_id in instaces.iter() {
+            let query_params = LoanQueryParams {
+                instance_uuid: Some(*instance_id),
+                date_start: Some(date_start),
+                date_end: Some(date_end),
+                ..Default::default()
+            };
 
-        if let Some(conflicting_loan) = conflicting_loans.next() {
-            let (conflicting_user_id, conflicting_date_start, conflicting_date_end) =
-                conflicting_loan.map_err(|e| e.to_string())?;
-            let error_message = format!(
-                "Error: Instance is already loaned in the requested time frame.\n\
+            let loans = self.get_loans(query_params);
+
+            if loans.len() > 0 {
+                let error_message = format!(
+                    "Error: Instance is already loaned in the requested time frame.\n\
                  Conflicting Loan - User ID: {}, Date Start: {}, Date End: {}",
-                conflicting_user_id, conflicting_date_start, conflicting_date_end,
-            );
-            return Err(error_message);
+                    loans[0].user.uuid, loans[0].date_start, loans[0].date_end
+                );
+                return Err(error_message);
+            }
         }
 
         // Insert the new loan if no conflicts
-        let uuid = Uuid::new_v4();
+        let loan_uuid = Uuid::new_v4();
+
+        // Manual acceptance for loans longer than 7 days
+        let mut accepted = true;
+        if date_end - date_start > chrono::Duration::days(7) {
+            accepted = false;
+        }
+
+        let add_loan_query = String::from(
+            "INSERT INTO
+                loan (uuid, user, date_start, date_end, accepted, description)
+            VALUES
+                (?1, ?2, ?3, ?4, ?5, ?6)",
+        );
         self.connection
             .execute(
-                "INSERT INTO
-                    loan (uuid, user, instance, date_start, date_end)
-                VALUES
-                    (?1, ?2, ?3, ?4, ?5)",
+                &add_loan_query,
                 params![
-                    uuid,
+                    loan_uuid,
                     user_id,
-                    instance_id,
                     date_start.to_rfc3339(),
                     date_end.to_rfc3339(),
+                    accepted,
+                    None::<String>,
                 ],
             )
             .map_err(|e| e.to_string())?;
-        return Ok(self.get_loan(uuid));
+        let add_loan_instance_query = String::from(
+            "INSERT INTO
+                loan_instance (loan, instance)
+            VALUES
+                (?1, ?2)",
+        );
+        for instance_id in instaces {
+            self.connection
+                .execute(&add_loan_instance_query, params![loan_uuid, instance_id])
+                .map_err(|e| e.to_string())?;
+        }
+
+        let new_loan = self.get_loan(loan_uuid);
+        match new_loan {
+            Some(loan) => {
+                return Ok(loan);
+            }
+            None => {
+                return Err("Error: Loan not found.".to_string());
+            }
+        }
     }
 }

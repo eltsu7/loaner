@@ -135,15 +135,16 @@ fn test_loans() {
 
     let loan = db.add_loan(
         user.uuid,
-        instance.uuid,
+        vec![instance.uuid],
         now,
         now + chrono::Duration::days(7),
     );
+    println!("{:?}", loan);
     assert!(loan.is_ok());
 
     let overlapping_loan_1 = db.add_loan(
         user.uuid,
-        instance.uuid,
+        vec![instance.uuid],
         now + chrono::Duration::days(1),
         now + chrono::Duration::days(8),
     );
@@ -151,7 +152,7 @@ fn test_loans() {
 
     let overlapping_loan_2 = db.add_loan(
         user.uuid,
-        instance.uuid,
+        vec![instance.uuid],
         now - chrono::Duration::days(1),
         now + chrono::Duration::days(6),
     );
@@ -159,7 +160,7 @@ fn test_loans() {
 
     let overlapping_loan_3 = db.add_loan(
         user.uuid,
-        instance.uuid,
+        vec![instance.uuid],
         now - chrono::Duration::days(7),
         now + chrono::Duration::days(1),
     );
