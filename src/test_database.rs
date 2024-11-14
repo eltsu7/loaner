@@ -1,8 +1,9 @@
 #[allow(dead_code)]
-fn initialize_test_database() -> crate::database::Database {
+pub fn initialize_test_database(db_name: Option<&str>) -> crate::database::Database {
     use crate::database::Database;
 
-    let db = Database::new(""); // In memory database
+    let db_name = db_name.unwrap_or("");
+    let db = Database::new(&db_name); // In memory database
 
     let user_names = vec!["Alice", "Bob", "Charlie"];
     for user_name in &user_names {
@@ -35,12 +36,12 @@ fn initialize_test_database() -> crate::database::Database {
 
 #[test]
 fn test_initialization() {
-    let _db = initialize_test_database();
+    let _db = initialize_test_database(None);
 }
 
 #[test]
 fn test_users() {
-    let db = initialize_test_database();
+    let db = initialize_test_database(None);
 
     let user_count = db.get_users().len();
 
@@ -69,7 +70,7 @@ fn test_users() {
 
 #[test]
 fn test_categories() {
-    let db = initialize_test_database();
+    let db = initialize_test_database(None);
 
     let mut categories = db.get_categories(None);
     for category in &categories {
@@ -99,7 +100,7 @@ fn test_categories() {
 
 #[test]
 fn test_duplicate_categories() {
-    let db = initialize_test_database();
+    let db = initialize_test_database(None);
 
     let new_category_names = vec!["Cameras", "Lenses"];
 
@@ -120,9 +121,29 @@ fn test_duplicate_categories() {
 }
 
 #[test]
+fn test_loan() {
+    let db = initialize_test_database(None);
+
+    let user = &db.get_users()[0];
+    let product = &db.get_product_by_name("Canon R6").unwrap();
+    let instance = &db.get_instances(Some(product.uuid))[0];
+
+    let now = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Helsinki);
+
+    let loan = db.add_loan(
+        user.uuid,
+        vec![instance.uuid],
+        now,
+        now + chrono::Duration::days(7),
+    );
+    dbg!(&loan);
+    assert!(loan.is_ok());
+}
+
+#[test]
 fn test_loans() {
     use chrono_tz::Europe::Helsinki;
-    let db = initialize_test_database();
+    let db = initialize_test_database(None);
 
     let loan_count = db.get_loans(crate::database::LoanQueryParams::new()).len();
     assert_eq!(loan_count, 0);
@@ -139,7 +160,7 @@ fn test_loans() {
         now,
         now + chrono::Duration::days(7),
     );
-    println!("{:?}", loan);
+    dbg!(&loan);
     assert!(loan.is_ok());
 
     let overlapping_loan_1 = db.add_loan(

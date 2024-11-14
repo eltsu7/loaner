@@ -1,3 +1,4 @@
+use rusqlite::params_from_iter;
 use std::fs;
 use uuid::Uuid;
 
@@ -7,7 +8,7 @@ use chrono_tz::Tz;
 use rusqlite::params;
 use rusqlite::Connection;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct LoanQueryParams {
     pub loan_uuid: Option<Uuid>,
     pub loan_accepted: Option<bool>,
@@ -628,33 +629,49 @@ impl Database {
             WHERE 1=1",
         );
 
-        if let Some(id) = params.loan_uuid {
-            query.push_str(&format!(" and loan_uuid = '{}'", id));
+        let mut query_params: Vec<&(dyn rusqlite::ToSql + Sync)> = Vec::new();
+        let mut date_strings: Vec<String> = Vec::new();
+
+        if let Some(ref id) = params.loan_uuid {
+            query.push_str(" AND loan_uuid = ?");
+            query_params.push(id);
         }
-        if let Some(accepted) = params.loan_accepted {
-            query.push_str(&format!(" and loan_accepted = '{}'", accepted));
+        if let Some(ref accepted) = params.loan_accepted {
+            query.push_str(" AND loan_accepted = ?");
+            query_params.push(accepted);
         }
-        if let Some(id) = params.user_uuid {
-            query.push_str(&format!(" and user_uuid = '{}'", id));
+        if let Some(ref id) = params.user_uuid {
+            query.push_str(" AND user_uuid = ?");
+            query_params.push(id);
         }
-        if let Some(id) = params.product_uuid {
-            query.push_str(&format!(" and product_uuid = '{}'", id));
+        if let Some(ref id) = params.product_uuid {
+            query.push_str(" AND product_uuid = ?");
+            query_params.push(id);
         }
-        if let Some(id) = params.category_uuid {
-            query.push_str(&format!(" and category_uuid = '{}'", id));
+        if let Some(ref id) = params.category_uuid {
+            query.push_str(" AND category_uuid = ?");
+            query_params.push(id);
         }
-        if let Some(start) = params.date_start {
-            query.push_str(&format!(" and loan_date_start >= '{}'", start));
+        if let Some(ref start) = params.date_start {
+            let start_str = start.to_rfc3339();
+            date_strings.push(start_str);
+            query.push_str(" AND loan_date_start >= ?");
         }
-        if let Some(end) = params.date_end {
-            query.push_str(&format!(" and loan_date_end <= '{}'", end));
+        if let Some(ref end) = params.date_end {
+            let end_str = end.to_rfc3339();
+            date_strings.push(end_str);
+            query.push_str(" AND loan_date_end <= ?");
+        }
+
+        for date in date_strings.iter() {
+            query_params.push(date);
         }
 
         // Combine loans
         let mut loans: Vec<Loan> = Vec::new();
 
         let mut statement = self.connection.prepare(&query).unwrap();
-        let rows = statement.query_map([], |row| {
+        let rows = statement.query_map(params_from_iter(query_params.iter()), |row| {
             Ok(Loan {
                 uuid: row.get(0).unwrap(),
                 user: User {
@@ -712,7 +729,7 @@ impl Database {
         };
         let loans = self.get_loans(query_params);
 
-        if loans.len() > 0 {
+        if !loans.is_empty() {
             return Some(loans[0].clone());
         } else {
             None
@@ -776,17 +793,29 @@ impl Database {
                 ],
             )
             .map_err(|e| e.to_string())?;
+
         let add_loan_instance_query = String::from(
             "INSERT INTO
-                loan_instance (loan, instance)
+                loan_instances (loan, instance)
             VALUES
                 (?1, ?2)",
         );
+
         for instance_id in instaces {
-            self.connection
+            let result = self
+                .connection
                 .execute(&add_loan_instance_query, params![loan_uuid, instance_id])
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.to_string());
+            dbg!(&result);
         }
+
+        // debug
+        let loans_query = String::from("SELECT loan_uuid FROM loan_view");
+        let mut statement = self.connection.prepare(&loans_query).unwrap();
+        let mut loans_iter = statement
+            .query_map([], |row| Ok(row.get::<usize, Uuid>(0).unwrap()))
+            .unwrap();
+        dbg!(&loans_iter.next());
 
         let new_loan = self.get_loan(loan_uuid);
         match new_loan {
