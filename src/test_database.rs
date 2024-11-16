@@ -121,7 +121,7 @@ fn test_duplicate_categories() {
 }
 
 #[test]
-fn test_loan() {
+fn test_add_loan() {
     let db = initialize_test_database(None);
 
     let user = &db.get_users()[0];
@@ -136,8 +136,94 @@ fn test_loan() {
         now,
         now + chrono::Duration::days(7),
     );
-    dbg!(&loan);
     assert!(loan.is_ok());
+}
+
+#[test]
+fn test_add_overlapping_loan() {
+    let db = initialize_test_database(None);
+
+    let user = &db.get_users()[0];
+    let product = &db.get_product_by_name("Canon R6").unwrap();
+    let instance = &db.get_instances(Some(product.uuid))[0];
+
+    let now = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Helsinki);
+
+    let loan = db.add_loan(
+        user.uuid,
+        vec![instance.uuid],
+        now,
+        now + chrono::Duration::days(7),
+    );
+    assert!(loan.is_ok());
+
+    let overlapping_loan = db.add_loan(
+        user.uuid,
+        vec![instance.uuid],
+        now + chrono::Duration::days(1),
+        now + chrono::Duration::days(8),
+    );
+    assert!(overlapping_loan.is_err());
+}
+
+#[test]
+fn test_loan_filters() {
+    let db = initialize_test_database(None);
+
+    let user_1 = &db.get_users()[0];
+    let user_2 = &db.get_users()[1];
+    let product_1 = &db.get_product_by_name("Canon R6").unwrap();
+    let product_2 = &db.get_product_by_name("Hasselblad 500c").unwrap();
+    let instance_1 = &db.get_instances(Some(product_1.uuid))[0];
+    let instance_2 = &db.get_instances(Some(product_2.uuid))[0];
+
+    let now = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Helsinki);
+
+    let loan_1 = db.add_loan(
+        user_1.uuid,
+        vec![instance_1.uuid],
+        now,
+        now + chrono::Duration::days(7),
+    );
+    assert!(loan_1.is_ok());
+    let loan_2 = db.add_loan(
+        user_2.uuid,
+        vec![instance_2.uuid],
+        now,
+        now + chrono::Duration::days(7),
+    );
+    assert!(loan_2.is_ok());
+
+    let loans = db.get_loans(crate::database::LoanQueryParams::new());
+    assert!(loans.len() == 2);
+
+    let user_1_loans = db.get_loans(crate::database::LoanQueryParams {
+        user_uuid: Some(user_1.uuid),
+        ..Default::default()
+    });
+    assert!(user_1_loans.len() == 1);
+    assert!(user_1_loans[0].user.uuid == user_1.uuid);
+
+    let user_2_loans = db.get_loans(crate::database::LoanQueryParams {
+        user_uuid: Some(user_2.uuid),
+        ..Default::default()
+    });
+    assert!(user_2_loans.len() == 1);
+    assert!(user_2_loans[0].user.uuid == user_2.uuid);
+
+    let product_1_loans = db.get_loans(crate::database::LoanQueryParams {
+        product_uuid: Some(product_1.uuid),
+        ..Default::default()
+    });
+    assert!(product_1_loans.len() == 1);
+    assert!(product_1_loans[0].instaces[0].product.uuid == product_1.uuid);
+
+    let product_2_loans = db.get_loans(crate::database::LoanQueryParams {
+        product_uuid: Some(product_2.uuid),
+        ..Default::default()
+    });
+    assert!(product_2_loans.len() == 1);
+    assert!(product_2_loans[0].instaces[0].product.uuid == product_2.uuid);
 }
 
 #[test]

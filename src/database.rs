@@ -636,6 +636,10 @@ impl Database {
             query.push_str(" AND loan_uuid = ?");
             query_params.push(id);
         }
+        if let Some(ref id) = params.instance_uuid {
+            query.push_str(" AND instance_uuid = ?");
+            query_params.push(id);
+        }
         if let Some(ref accepted) = params.loan_accepted {
             query.push_str(" AND loan_accepted = ?");
             query_params.push(accepted);
@@ -653,14 +657,12 @@ impl Database {
             query_params.push(id);
         }
         if let Some(ref start) = params.date_start {
-            let start_str = start.to_rfc3339();
-            date_strings.push(start_str);
-            query.push_str(" AND loan_date_start >= ?");
+            date_strings.push(start.to_rfc3339());
+            query.push_str(" AND loan_date_end >= ?");
         }
         if let Some(ref end) = params.date_end {
-            let end_str = end.to_rfc3339();
-            date_strings.push(end_str);
-            query.push_str(" AND loan_date_end <= ?");
+            date_strings.push(end.to_rfc3339());
+            query.push_str(" AND loan_date_start <= ?");
         }
 
         for date in date_strings.iter() {
@@ -750,10 +752,13 @@ impl Database {
                 instance_uuid: Some(*instance_id),
                 date_start: Some(date_start),
                 date_end: Some(date_end),
+                loan_accepted: Some(true),
                 ..Default::default()
             };
 
             let loans = self.get_loans(query_params);
+
+            dbg!(&loans);
 
             if loans.len() > 0 {
                 let error_message = format!(
@@ -806,16 +811,8 @@ impl Database {
                 .connection
                 .execute(&add_loan_instance_query, params![loan_uuid, instance_id])
                 .map_err(|e| e.to_string());
-            dbg!(&result);
+            assert!(result.is_ok());
         }
-
-        // debug
-        let loans_query = String::from("SELECT loan_uuid FROM loan_view");
-        let mut statement = self.connection.prepare(&loans_query).unwrap();
-        let mut loans_iter = statement
-            .query_map([], |row| Ok(row.get::<usize, Uuid>(0).unwrap()))
-            .unwrap();
-        dbg!(&loans_iter.next());
 
         let new_loan = self.get_loan(loan_uuid);
         match new_loan {
