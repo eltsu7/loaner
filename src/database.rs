@@ -168,7 +168,7 @@ impl Database {
         }
     }
 
-    pub fn add_user(&self, name: &str) {
+    pub fn add_user(&self, name: &str) -> Result<User, String> {
         let uuid = Uuid::new_v4();
         let query = String::from(
             "INSERT INTO
@@ -179,6 +179,22 @@ impl Database {
         self.connection
             .execute(&query, params![uuid, name])
             .unwrap();
+
+        match self.get_user_by_name(name) {
+            Some(user) => Ok(user),
+            None => Err("Error: User not found.".to_string()),
+        }
+    }
+
+    pub fn remove_user(&self, uuid: Uuid) -> Result<(), String> {
+        let query = String::from(
+            "DELETE FROM user
+            WHERE user.uuid = ?1",
+        );
+        self.connection
+            .execute(&query, params![uuid])
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub fn get_categories(&self, supercategory: Option<Uuid>) -> Vec<Category> {
@@ -303,6 +319,17 @@ impl Database {
             .unwrap();
 
         Ok(self.get_category(name).unwrap())
+    }
+
+    pub fn remove_category(&self, uuid: Uuid) -> Result<(), String> {
+        let query = String::from(
+            "DELETE FROM category
+            WHERE category.uuid = ?1",
+        );
+        self.connection
+            .execute(&query, params![uuid])
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub fn get_products(&self, category_id: Option<Uuid>) -> Vec<Product> {

@@ -3,11 +3,11 @@ pub fn initialize_test_database(db_name: Option<&str>) -> crate::database::Datab
     use crate::database::Database;
 
     let db_name = db_name.unwrap_or("");
-    let db = Database::new(&db_name); // In memory database
+    let db = Database::new(&db_name);
 
     let user_names = vec!["Alice", "Bob", "Charlie"];
     for user_name in &user_names {
-        db.add_user(user_name)
+        let _ = db.add_user(user_name);
     }
 
     let catalogue = db.add_category("Catalogue", None).unwrap();
@@ -50,7 +50,7 @@ fn test_users() {
     let new_user_names = vec!["David", "Eve", "Frank"];
 
     for user_name in &new_user_names {
-        db.add_user(user_name)
+        let _ = db.add_user(user_name);
     }
 
     let users = db.get_users();
