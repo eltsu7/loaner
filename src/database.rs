@@ -476,6 +476,17 @@ impl Database {
         return Ok(self.get_product(uuid).unwrap());
     }
 
+    pub fn remove_product(&self, uuid: Uuid) -> Result<(), String> {
+        let query = String::from(
+            "DELETE FROM product
+            WHERE product.uuid = ?1",
+        );
+        self.connection
+            .execute(&query, params![uuid])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn get_instances(&self, product_id: Option<Uuid>) -> Vec<Instance> {
         let mut instances = Vec::new();
         if product_id.is_some() {

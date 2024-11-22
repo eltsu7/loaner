@@ -96,6 +96,18 @@ fn test_categories() {
     assert!(categories[3].name == "Drones");
     assert!(categories[4].name == "Flashes");
     assert!(categories[5].name == "Gimbals");
+
+    let drones_uuid = db.get_category("Drones").unwrap().uuid;
+    let mavic = db.add_product("Mavic 2 Pro", drones_uuid).unwrap();
+
+    let result = db.remove_category(drones_uuid);
+    assert!(result.is_err());
+
+    let result = db.remove_product(mavic.uuid);
+    assert!(result.is_ok());
+
+    let result = db.remove_category(drones_uuid);
+    assert!(result.is_ok());
 }
 
 #[test]
