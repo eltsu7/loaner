@@ -13,3 +13,6 @@
 - Creation
 - Granting/revoking borrowing rights
 - Deletion
+
+### Catalogue handling
+- Add, edit and remove(?) categories, products, instances
